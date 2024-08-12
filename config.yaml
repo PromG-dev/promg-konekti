@@ -1,0 +1,16 @@
+# Database Credentials and Information
+db_name: "neo4j"
+uri: "bolt://localhost:7687"
+user: "neo4j"
+password: "12345678"
+
+# Dataset information
+dataset_name: "KonektiEventStream"
+semantic_header_path: ""
+dataset_description_path: ""
+use_sample: false
+
+# Import settings
+verbose: false
+batch_size: 25000
+use_preprocessed_files: false
