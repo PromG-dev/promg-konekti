@@ -91,12 +91,34 @@ class OcedImport:
             self.connection.exec_query(ql.get_import_event_nodes_query,
                                        **{"file_name": file_name})
 
-    def connect_events_to_objects(self, column_id, labels=None, keys=None):
+    def connect_events_to_objects(self, column_ids, labels=None, keys=None):
         self.connection.exec_query(ql.get_connect_event_nodes_to_objects_query,
                                    **{
-                                       "column_id": column_id,
+                                       "column_ids": column_ids,
                                        "labels": labels,
                                        "keys": keys
+                                   })
+
+    def remove_key_props_from_events(self, keys):
+        if len(keys) > 0:
+            self.connection.exec_query(ql.get_remove_key_properties_from_event_nodes_query,
+                                       **{
+                                           "keys": keys
+                                       })
+
+    def merge_similar_states(self, similar_keys):
+        if len(similar_keys) > 0:
+            self.connection.exec_query(ql.get_merge_similar_states_query,
+                                       **{
+                                           "keys": similar_keys
+                                         })
+
+    def create_rels(self, _from, _to, _relation):
+        self.connection.exec_query(ql.get_create_relations_query,
+                                   **{
+                                       "_from": _from,
+                                       "_to": _to,
+                                       "_relation": _relation
                                    })
 
     @Performance.track()
