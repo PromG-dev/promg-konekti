@@ -4,7 +4,7 @@ from datetime import datetime
 from method_manager import MethodManager
 
 batch_size = 100000
-zip_file = os.path.join("data", "konekti_eventstore_export.zip")
+file = os.path.join("data", "eventstore.json")
 step_clear_db = True
 step_populate_graph = True
 
@@ -15,7 +15,7 @@ def main() -> None:
     @return: None
     """
     print("Started at =", datetime.now().strftime("%H:%M:%S"))
-    methods = MethodManager(zip_file=zip_file)
+    methods = MethodManager(file=file)
 
     if step_clear_db:
         methods.clear_database()
