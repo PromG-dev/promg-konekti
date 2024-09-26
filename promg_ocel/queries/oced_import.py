@@ -15,10 +15,10 @@ class OcedImportQueryLibrary:
             CALL apoc.load.json("file://$file_name")
             YIELD value
             RETURN value',
-            'MERGE (n:Entity {sysId: toString(value.Id)})
+            'MERGE (n:Entity {sysId: toString(value.id)})
             WITH n, value
-            CALL apoc.create.addLabels(n, [value.Name]) YIELD node AS n_labeled
-            SET n_labeled += COALESCE(value.Attributes, {})',
+            CALL apoc.create.addLabels(n, [value.name]) YIELD node AS n_labeled
+            SET n_labeled += COALESCE(value.attributes, {})',
             {batchSize: 10000})            
         '''
 
@@ -34,10 +34,14 @@ class OcedImportQueryLibrary:
             CALL apoc.load.json("file://$file_name")
             YIELD value
             RETURN value',
-            'MERGE (a:Activity {activity: value.Name})
-             CREATE (e:Event {timestamp: datetime(value.TimeStamp)})
+            'MERGE (a:Activity {activity: value.name})
+             MERGE (e:Event {id: toString(value.id), timestamp: datetime(value.timestamp)})
              MERGE (a) - [:OBSERVED] -> (e)
-             SET e += COALESCE(value.Attributes, {})',
+             SET e += COALESCE(value.eventattributes, {})
+             UNWIND value.objectinstances as object_id
+             MATCH (n:Entity {sysId: object_id})
+             MERGE (e)-[:CORR]->(n)
+             ',
             {batchSize: 10000})            
         '''
 
