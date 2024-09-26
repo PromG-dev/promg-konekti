@@ -5,6 +5,7 @@ from promg import Performance
 from promg_ocel.queries.oced_import import OcedImportQueryLibrary as ql
 from promg.cypher_queries.data_importer_ql import DataImporterQueryLibrary as di_ql
 
+import pandas as pd
 from zipfile import ZipFile
 import json
 
@@ -15,48 +16,42 @@ class OcedImport:
 
     def __init__(self, db_connection):
         self.connection = db_connection
-        self.ocelData = dict()
+        self.data = dict()
         self._import_directory = None
 
-    # "objectinstances": [
-    # {
-    #   "Id": 138656,
-    #   "Name": "Paymentline",
-    #   "Attributes": {
-    #     "record_id": "13515",
-    #     "payment_id": "10285",
-    #     "line_id": "3"
-    #   }
-    # },
+    def extract_event_stream(self, data):
+        event_stream = data["EventStream"]
+        object_attributes = set()
+        for event in event_stream:
+            event_attributes = json.loads(event["eventattributes"])
+            event["eventattributes"] = event_attributes
 
-    # {
-    #   "Id": 120246,
-    #   "Name": "Create goodsreceipts",
-    #   "TimeStamp": "2020-01-14T20:15:00Z",
-    #   "Attributes": {
-    #     "record_id": "73",
-    #     "goods_receipt_id": "73",
-    #     "created_date_time": "01/14/2020 20:15:00"
-    #   },
-    #   "ObjectInstances": [
-    #     74
-    #   ]
-    # },
+        self.data["EventStream"] = event_stream
+
+    def extract_object_instances(self, data):
+        object_instances = data["ObjectInstances"]
+        for instance in object_instances:
+            attributes = json.loads(instance["attributes"])
+            instance["attributes"] = attributes
+            # convert to camel case
+            instance["name"] = instance["name"].title().replace(" ", "")
+
+        self.data["ObjectInstances"] = object_instances
+
+    def extract_object_instance_relationships(self, data):
+        object_instances_relationships = data["ObjectInstancesToObjectInstances"]
+        self.data["ObjectInstanceRelationships"] = object_instances_relationships
 
     @Performance.track()
-    def readJsonOcel(self, dataset: os.path):
-        # dataset is a file with 'jsconocel.zip' extension
-        # read zip
-        with ZipFile(dataset, 'r') as zip:
-            for jsonOcelFile in zip.namelist():
-                print(f"Reading {jsonOcelFile}.")
-                # get JSON file from ZIP
-                with zip.open(jsonOcelFile) as jsonOcel:
-                    # read JSON
-                    data = jsonOcel.read()
-                    d = json.loads(data.decode("utf-8"))
-                    if isinstance(d, dict):
-                        self.ocelData[jsonOcelFile] = d
+    def readJsonOcel(self, file: os.path):
+        print(f"Reading {file}.")
+        # get JSON file from ZIP
+        with open(file) as json_file:
+            # read JSON
+            data = json.load(json_file)
+            self.extract_event_stream(data)
+            self.extract_object_instances(data)
+            self.extract_object_instance_relationships(data)
 
     def get_import_directory(self):
         if self._import_directory is None:
@@ -75,21 +70,17 @@ class OcedImport:
 
     @Performance.track()
     def import_objects(self):
-        for key, value in self.ocelData.items():
-            data = value[OcedImport.K_OBJECTS]
-            file_name = f"{key}_{OcedImport.K_OBJECTS}.json"
-            self.store_data(data=data, file_name=file_name)
-            self.connection.exec_query(ql.get_import_object_nodes_query,
-                                       **{"file_name": file_name})
+        file_name = f"object_instances.json"
+        self.store_data(data=self.data["ObjectInstances"], file_name=file_name)
+        self.connection.exec_query(ql.get_import_object_nodes_query,
+                                   **{"file_name": file_name})
 
     @Performance.track()
     def import_events(self):
-        for key, value in self.ocelData.items():
-            data = value[OcedImport.K_EVENTS]
-            file_name = f"{key}_{OcedImport.K_EVENTS}.json"
-            self.store_data(data=data, file_name=file_name)
-            self.connection.exec_query(ql.get_import_event_nodes_query,
-                                       **{"file_name": file_name})
+        file_name = f"eventstream.json"
+        self.store_data(data=self.data["EventStream"], file_name=file_name)
+        self.connection.exec_query(ql.get_import_event_nodes_query,
+                                   **{"file_name": file_name})
 
     def connect_events_to_objects(self, column_ids, labels=None, keys=None):
         self.connection.exec_query(ql.get_connect_event_nodes_to_objects_query,
@@ -111,7 +102,7 @@ class OcedImport:
             self.connection.exec_query(ql.get_merge_similar_states_query,
                                        **{
                                            "keys": similar_keys
-                                         })
+                                       })
 
     def create_rels(self, _from, _to, _relation):
         self.connection.exec_query(ql.get_create_relations_query,
