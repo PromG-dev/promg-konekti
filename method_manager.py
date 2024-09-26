@@ -4,9 +4,9 @@ from module_manager import ModuleManager
 
 
 class MethodManager:
-    def __init__(self, config=None, zip_file=None):
+    def __init__(self, config=None, file=None):
         self.modules = ModuleManager(config=config)
-        self.zip_file = zip_file
+        self.file = file
 
     def clear_database(self):
         db_manager = self.modules.get_db_manager()
@@ -16,8 +16,8 @@ class MethodManager:
 
     def load_and_import_json(self):
         oi = self.modules.get_oced_import_module()
-        oi.readJsonOcel(dataset=self.zip_file)
-        # oi.import_objects()
+        oi.readJsonOcel(file=self.file)
+        oi.import_objects()
         oi.import_events()
 
         connections = [
