@@ -11,8 +11,12 @@ from zipfile import ZipFile
 import json
 
 
-def make_label(label):
+def convert_label_to_camel_case(label):
     return label.title().replace(" ", "")
+
+
+def convert_id_to_string(_id):
+    return str(_id)
 
 
 class OcedImport:
@@ -24,23 +28,26 @@ class OcedImport:
         self.data = dict()
         self._import_directory = None
 
-    def extract_event_stream(self, data):
-        event_stream = data["EventStream"]
+    @staticmethod
+    def preprocess_event_stream(event_stream):
         for event in event_stream:
             event_attributes = json.loads(event["eventattributes"])
             event["eventattributes"] = event_attributes
+            event["id"] = convert_id_to_string(event["id"])
+            event["objectinstances"] = [convert_id_to_string(_id) for _id in event["objectinstances"]]
 
-        self.data["EventStream"] = event_stream
+        return event_stream
 
-    def extract_object_instances(self, data):
-        object_instances = data["ObjectInstances"]
+    @staticmethod
+    def preprocess_object_instances(object_instances):
         for instance in object_instances:
             attributes = json.loads(instance["attributes"])
             instance["attributes"] = attributes
+            instance["id"] = convert_id_to_string(instance["id"])
             # convert to camel case
-            instance["name"] = make_label(instance["name"])
+            instance["name"] = convert_label_to_camel_case(instance["name"])
 
-        self.data["ObjectInstances"] = object_instances
+        return object_instances
 
     def relationship_has_correct_direction(self, from_name: str, to_name: str):
         for relationship_type in self.data["RelationshipTypes"]:
@@ -48,18 +55,20 @@ class OcedImport:
                 return True
             if relationship_type["fromname"] == to_name and relationship_type["toname"] == from_name:
                 return False
-        return None
 
-    def extract_object_instance_relationships(self, data):
-        object_instances_relationships = data["ObjectInstancesToObjectInstances"]
+        raise ValueError("The direction is not defined for this relationship")
 
+    def preprocess_object_instance_relationships(self, object_instances_relationships):
         filtered_relationships = []
         seen_relationships = set()
         # update the direction of the relations using the relationship types
         for relationship in object_instances_relationships:
             # update labels to be in correct formatting
-            relationship["fromname"] = make_label(relationship["fromname"])
-            relationship["toname"] = make_label(relationship["toname"])
+            relationship["fromname"] = convert_label_to_camel_case(relationship["fromname"])
+            relationship["toname"] = convert_label_to_camel_case(relationship["toname"])
+
+            relationship["fromid"] = convert_id_to_string(relationship["fromid"])
+            relationship["toid"] = convert_id_to_string(relationship["toid"])
 
             has_correct_direction = self.relationship_has_correct_direction(from_name=relationship["fromname"],
                                                                             to_name=relationship["toname"])
@@ -81,16 +90,15 @@ class OcedImport:
                 seen_relationships.add(t)
                 filtered_relationships.append(new_relationship)
 
-        self.data["ObjectInstanceRelationships"] = filtered_relationships
+        return filtered_relationships
 
-    def extract_relationship_types(self, data):
-        object_relationship_types = data["ObjectsToObjects"]
-
+    @staticmethod
+    def preprocess_relationship_types(object_relationship_types):
         # make sure that the direction of each relationship type is correct displayed using from and to
         # so all 1:N relationships are switched to N:1 relationships
         for relationship_type in object_relationship_types:
-            relationship_type["toname"] = make_label(relationship_type["toname"])
-            relationship_type["fromname"] = make_label(relationship_type["fromname"])
+            relationship_type["toname"] = convert_label_to_camel_case(relationship_type["toname"])
+            relationship_type["fromname"] = convert_label_to_camel_case(relationship_type["fromname"])
 
             if relationship_type["Cardinality"] == "1:N":
                 from_name = relationship_type["toname"]
@@ -99,7 +107,7 @@ class OcedImport:
                 relationship_type["fromname"] = from_name
                 relationship_type["Cardinality"] = "N:1"
 
-        self.data["RelationshipTypes"] = object_relationship_types
+        return object_relationship_types
 
     @Performance.track()
     def read_json_ocel(self, file: os.path):
@@ -108,10 +116,12 @@ class OcedImport:
         with open(file) as json_file:
             # read JSON
             data = json.load(json_file)
-            self.extract_event_stream(data)
-            self.extract_object_instances(data)
-            self.extract_relationship_types(data)
-            self.extract_object_instance_relationships(data)
+            self.data["EventStream"] = self.preprocess_event_stream(event_stream=data["EventStream"])
+            self.data["ObjectInstances"] = self.preprocess_object_instances(object_instances=data["ObjectInstances"])
+            self.data["RelationshipTypes"] = self.preprocess_relationship_types(
+                object_relationship_types=data["ObjectsToObjects"])
+            self.data["ObjectInstanceRelationships"] = self.preprocess_object_instance_relationships(
+                object_instances_relationships=data["ObjectInstancesToObjectInstances"])
 
     def get_import_directory(self):
         if self._import_directory is None:
@@ -148,4 +158,3 @@ class OcedImport:
         self.store_data(data=self.data["ObjectInstanceRelationships"], file_name=file_name)
         self.connection.exec_query(ql.get_create_relations_between_objects_query,
                                    **{"file_name": file_name})
-
