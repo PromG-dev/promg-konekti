@@ -1,4 +1,5 @@
 import os
+from typing import List, Dict
 
 from promg import DatabaseConnection
 from promg import Performance
@@ -8,6 +9,10 @@ from promg.cypher_queries.data_importer_ql import DataImporterQueryLibrary as di
 import pandas as pd
 from zipfile import ZipFile
 import json
+
+
+def make_label(label):
+    return label.title().replace(" ", "")
 
 
 class OcedImport:
@@ -21,7 +26,6 @@ class OcedImport:
 
     def extract_event_stream(self, data):
         event_stream = data["EventStream"]
-        object_attributes = set()
         for event in event_stream:
             event_attributes = json.loads(event["eventattributes"])
             event["eventattributes"] = event_attributes
@@ -34,16 +38,71 @@ class OcedImport:
             attributes = json.loads(instance["attributes"])
             instance["attributes"] = attributes
             # convert to camel case
-            instance["name"] = instance["name"].title().replace(" ", "")
+            instance["name"] = make_label(instance["name"])
 
         self.data["ObjectInstances"] = object_instances
 
+    def relationship_has_correct_direction(self, from_name: str, to_name: str):
+        for relationship_type in self.data["RelationshipTypes"]:
+            if relationship_type["fromname"] == from_name and relationship_type["toname"] == to_name:
+                return True
+            if relationship_type["fromname"] == to_name and relationship_type["toname"] == from_name:
+                return False
+        return None
+
     def extract_object_instance_relationships(self, data):
         object_instances_relationships = data["ObjectInstancesToObjectInstances"]
-        self.data["ObjectInstanceRelationships"] = object_instances_relationships
+
+        filtered_relationships = []
+        seen_relationships = set()
+        # update the direction of the relations using the relationship types
+        for relationship in object_instances_relationships:
+            # update labels to be in correct formatting
+            relationship["fromname"] = make_label(relationship["fromname"])
+            relationship["toname"] = make_label(relationship["toname"])
+
+            has_correct_direction = self.relationship_has_correct_direction(from_name=relationship["fromname"],
+                                                                            to_name=relationship["toname"])
+
+            if has_correct_direction:
+                edge_pair = (relationship["fromid"], relationship["toid"])
+                type_pair = (relationship["fromname"], relationship["toname"])
+            else:
+                edge_pair = (relationship["toid"], relationship["fromid"])
+                type_pair = (relationship["toname"], relationship["fromname"])
+
+            new_relationship = {
+                "edge_pair": edge_pair,
+                "type_pair": type_pair
+            }
+
+            t = tuple(new_relationship.items())
+            if t not in seen_relationships:
+                seen_relationships.add(t)
+                filtered_relationships.append(new_relationship)
+
+        self.data["ObjectInstanceRelationships"] = filtered_relationships
+
+    def extract_relationship_types(self, data):
+        object_relationship_types = data["ObjectsToObjects"]
+
+        # make sure that the direction of each relationship type is correct displayed using from and to
+        # so all 1:N relationships are switched to N:1 relationships
+        for relationship_type in object_relationship_types:
+            relationship_type["toname"] = make_label(relationship_type["toname"])
+            relationship_type["fromname"] = make_label(relationship_type["fromname"])
+
+            if relationship_type["Cardinality"] == "1:N":
+                from_name = relationship_type["toname"]
+                to_name = relationship_type["fromname"]
+                relationship_type["toname"] = to_name
+                relationship_type["fromname"] = from_name
+                relationship_type["Cardinality"] = "N:1"
+
+        self.data["RelationshipTypes"] = object_relationship_types
 
     @Performance.track()
-    def readJsonOcel(self, file: os.path):
+    def read_json_ocel(self, file: os.path):
         print(f"Reading {file}.")
         # get JSON file from ZIP
         with open(file) as json_file:
@@ -51,6 +110,7 @@ class OcedImport:
             data = json.load(json_file)
             self.extract_event_stream(data)
             self.extract_object_instances(data)
+            self.extract_relationship_types(data)
             self.extract_object_instance_relationships(data)
 
     def get_import_directory(self):
@@ -70,57 +130,22 @@ class OcedImport:
 
     @Performance.track()
     def import_objects(self):
-        file_name = f"object_instances.json"
+        file_name = "object_instances.json"
         self.store_data(data=self.data["ObjectInstances"], file_name=file_name)
         self.connection.exec_query(ql.get_import_object_nodes_query,
                                    **{"file_name": file_name})
 
     @Performance.track()
     def import_events(self):
-        file_name = f"eventstream.json"
+        file_name = "eventstream.json"
         self.store_data(data=self.data["EventStream"], file_name=file_name)
         self.connection.exec_query(ql.get_import_event_nodes_query,
                                    **{"file_name": file_name})
 
-    def connect_events_to_objects(self, column_ids, labels=None, keys=None):
-        self.connection.exec_query(ql.get_connect_event_nodes_to_objects_query,
-                                   **{
-                                       "column_ids": column_ids,
-                                       "labels": labels,
-                                       "keys": keys
-                                   })
-
-    def remove_key_props_from_events(self, keys):
-        if len(keys) > 0:
-            self.connection.exec_query(ql.get_remove_key_properties_from_event_nodes_query,
-                                       **{
-                                           "keys": keys
-                                       })
-
-    def merge_similar_states(self, similar_keys):
-        if len(similar_keys) > 0:
-            self.connection.exec_query(ql.get_merge_similar_states_query,
-                                       **{
-                                           "keys": similar_keys
-                                       })
-
-    def create_rels(self, _from, _to, _relation):
-        self.connection.exec_query(ql.get_create_relations_query,
-                                   **{
-                                       "_from": _from,
-                                       "_to": _to,
-                                       "_relation": _relation
-                                   })
-
     @Performance.track()
-    def analyze_delays(self):
-        result = self.connection.exec_query(ql.q_summarize_delay_entities)
-        for r in result:
-            print(f"{r['delay_by']} delayed an activity {r['frequency']} times.")
+    def import_relationships(self):
+        file_name = "object_relationships.json"
+        self.store_data(data=self.data["ObjectInstanceRelationships"], file_name=file_name)
+        self.connection.exec_query(ql.get_create_relations_between_objects_query,
+                                   **{"file_name": file_name})
 
-    @Performance.track()
-    def visualize_delays(self, threshold: int = 0):
-        self.connection.exec_query(ql.visualize_delays,
-                                   **{
-                                       "threshold": threshold
-                                   })
