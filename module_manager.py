@@ -3,6 +3,8 @@ from promg import DatabaseConnection
 from promg import Performance
 from promg.modules.db_management import DBManagement
 from promg import Configuration
+
+from promg_ocel.module.extra_constraint_manager import ConstraintsManager
 from promg_ocel.module.oced_import import OcedImport
 
 
@@ -14,7 +16,9 @@ class ModuleManager:
         self._db_connection = DatabaseConnection.set_up_connection(config=config)
         self._performance = Performance.set_up_performance(config=config)
 
+
         self._db_manager = None
+        self._constraints_manager = None
         self._oced_import_module = None
 
     def get_config(self):
@@ -33,6 +37,11 @@ class ModuleManager:
         if self._db_manager is None:
             self._db_manager = DBManagement(db_connection=self._db_connection)
         return self._db_manager
+
+    def get_constraints_manager(self):
+        if self._constraints_manager is None:
+            self._constraints_manager = ConstraintsManager(db_connection=self._db_connection)
+        return self._constraints_manager
 
     def get_oced_import_module(self):
         if self._oced_import_module is None:
