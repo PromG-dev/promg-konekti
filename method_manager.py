@@ -13,6 +13,11 @@ class MethodManager:
         print(Fore.RED + 'Clearing the database.' + Fore.RESET)
         db_manager.clear_db(replace=True)
         db_manager.set_constraints()
+        self.set_extra_constraints()
+
+    def set_extra_constraints(self):
+        constraints_manager = self.modules.get_constraints_manager()
+        constraints_manager.set_event_id_constraint()
 
     def load_and_import_json(self):
         oi = self.modules.get_oced_import_module()
