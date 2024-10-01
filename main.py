@@ -25,7 +25,6 @@ def main() -> None:
 
     methods.finish_and_save()
     methods.print_statistics()
-    methods.close_connection()
 
 
 if __name__ == "__main__":

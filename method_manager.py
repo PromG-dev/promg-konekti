@@ -33,7 +33,3 @@ class MethodManager:
     def print_statistics(self):
         db_manager = self.modules.get_db_manager()
         db_manager.print_statistics()
-
-    def close_connection(self):
-        db_connection = self.modules.get_db_connection()
-        db_connection.close_connection()
