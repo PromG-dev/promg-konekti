@@ -1,4 +1,4 @@
-from promg_ocel.queries.constraint_query import ExtraConstraintsQueryLibrary as cql
+from additional_modules.queries.constraint_query import ExtraConstraintsQueryLibrary as cql
 
 
 class ConstraintsManager:

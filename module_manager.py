@@ -4,8 +4,8 @@ from promg import Performance
 from promg.modules.db_management import DBManagement
 from promg import Configuration
 
-from promg_ocel.module.extra_constraint_manager import ConstraintsManager
-from promg_ocel.module.oced_import import OcedImport
+from additional_modules.module.extra_constraint_manager import ConstraintsManager
+from additional_modules.module.oced_import import OcedImport
 
 
 class ModuleManager:

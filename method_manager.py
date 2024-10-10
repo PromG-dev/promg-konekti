@@ -21,7 +21,7 @@ class MethodManager:
 
     def load_and_import_json(self):
         oi = self.modules.get_oced_import_module()
-        oi.read_json_ocel(file=self.file)
+        oi.read_json_eventstore(file=self.file)
         oi.import_objects()
         oi.import_events()
         oi.import_relationships()

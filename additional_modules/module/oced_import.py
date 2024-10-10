@@ -3,7 +3,7 @@ from typing import List, Dict
 
 from promg import DatabaseConnection
 from promg import Performance
-from promg_ocel.queries.oced_import import OcedImportQueryLibrary as ql
+from additional_modules.queries.oced_import import OcedImportQueryLibrary as ql
 from promg.cypher_queries.data_importer_ql import DataImporterQueryLibrary as di_ql
 
 import pandas as pd
@@ -110,7 +110,7 @@ class OcedImport:
         return object_relationship_types
 
     @Performance.track()
-    def read_json_ocel(self, file: os.path):
+    def read_json_eventstore(self, file: os.path):
         print(f"Reading {file}.")
         # get JSON file from ZIP
         with open(file) as json_file:
