@@ -4,7 +4,11 @@ from datetime import datetime
 from method_manager import MethodManager
 
 batch_size = 100000
-file = os.path.join("data", "eventstore.json")
+
+file_name = "eventstore.json"
+# file_name = "securebank_eventstore.json"
+
+file = os.path.join("data", file_name)
 step_clear_db = True
 step_populate_graph = True
 
