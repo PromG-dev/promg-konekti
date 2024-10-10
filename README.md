@@ -132,7 +132,7 @@ The dataset can be set on line 8 and 9 of `main.py`
 ## Results
 ### eventstore.json
 This file is a test dataset created from scratch by Konekti. The underlying relationship diagram is shown below.
-![Underlying relationship diagram of test dataset](https://github.com/PromG-dev/promg-konekti/images/Test_Dataset_Structure.png)
+![Underlying relationship diagram of test dataset](https://github.com/PromG-dev/promg-konekti/blob/main/images/Test_Dataset_Structure.png)
 
 The import takes around 3.95 seconds and results in a graph database with the following characteristics.
 
@@ -150,7 +150,6 @@ The import takes around 3.95 seconds and results in a graph database with the fo
 
 ### securebank_eventstore.json
 This file is an adaptation of the BPIC17 dataset. The adapation has been done by Konekti.
-![Underlying relationship diagram of test dataset](https://github.com/PromG-dev/promg-konekti/blob/main/images/Test_Dataset_Structure.png)
 
 The import takes around 44.71 seconds (4.2 minutes) and results in a graph database with the following characteristics.
 
